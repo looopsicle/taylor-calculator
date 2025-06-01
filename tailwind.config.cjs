@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  // sertakan index.html di root, dan semua file src
+  darkMode: 'class', 
   content: [
     "./index.html",
     "./src/**/*.{js,jsx,ts,tsx,html}"
@@ -10,6 +10,12 @@ module.exports = {
       fontFamily: {
         sans: ['var(--font-sans)'],
       },
+    },
+  },
+  variants: {
+    extend: {
+      backgroundColor: ['dark', 'hover'],
+      borderColor: ['dark', 'hover'],
     },
   },
   plugins: [],
