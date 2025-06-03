@@ -205,7 +205,7 @@ export default function CalculatorRenew() {
                 throw new Error(parsedResponse.message);
 
             setCalculateResult(parsedResponse)
-            console.log(parsedResponse)
+            setErrorMessage(null)
         }
         catch(e: any)
         {
