@@ -169,7 +169,7 @@ export default function CalculatorRenew() {
     const insert = (v: string) => setRawFunction((s) => s + v);
     const del    = ()    => setRawFunction((s) => s.slice(0, -1));
     const clear  = ()    => setRawFunction("");
-    const convertToMathJS = (s: string) => {
+    const convertToMathJS = (s: string): string => {
         let expr = s;
         expr = expr.replace(/√\s*\(/g, "sqrt(");
         expr = expr.replace(/√\s*([0-9a-zA-Zπ])/g, "sqrt($1)");
@@ -190,6 +190,16 @@ export default function CalculatorRenew() {
                 expansion_point: expansionPoint,
                 order_n: orderN
             }
+
+            if(payload.base_function === "")
+                throw new Error("Fungsi tidak boleh kosong");
+
+            if(isNaN(payload.expansion_point))
+                throw new Error("Poin Ekspansi tidak boleh kosong");
+
+            if(isNaN(payload.order_n))
+                throw new Error("Order tidak boleh kosong");
+
 
             const response = await fetch("http://taylorseriescalculator.pradita.website/api/taylor", {
                 method: "POST",
@@ -317,6 +327,7 @@ export default function CalculatorRenew() {
 
                     {/* tombol Calculate */}
                     <button
+                        type='submit'
                         onClick={handleCalculate}
                         disabled={onLoading}
                         className={`w-full py-3 font-semibold rounded-lg text-white
