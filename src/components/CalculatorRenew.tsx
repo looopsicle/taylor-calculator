@@ -7,6 +7,21 @@ import { CalculatorIcon } from "@heroicons/react/outline";
 
 import { XCircleIcon } from "@heroicons/react/outline";
 
+import {
+    Chart as ChartJS,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend
+} from 'chart.js';
+
+import { Line } from 'react-chartjs-2';
+
+import type { ChartOptions, ChartData } from "chart.js";
+
 type RequestPayload = {
     base_function: string,
     expansion_point: number,
@@ -31,7 +46,7 @@ type TaylorResult = {
     terms: string[],
     symbolic_derivatives: string[],
     evaluated_derivatives: string[],
-    f_exact: number,
+    f_exact: number,    
     final_taylor_approx: number,
     final_absolute_error: number,
     final_relative_error: number,
@@ -48,7 +63,25 @@ type ResultModalProps = {
     onClose: () => void
 }
 
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
 function ResultModal({ calculateResult, onClose }: ResultModalProps) {
+    const { 
+        base_function, 
+        expansion_point, 
+        order_n, 
+        evaluation_point, 
+        result 
+    } = calculateResult.data;
+
     const taylor_series_steps: Array<{
         n: number;
         derivative_form: string;
@@ -101,6 +134,122 @@ function ResultModal({ calculateResult, onClose }: ResultModalProps) {
             relative_error: calculateResult.data.result.errors_per_term[i].relative_error
         });
     }
+
+    // Generate data untuk grafik (misal dari -π sampai +π)
+    const numPoints = 300;
+    const xMin = -Math.PI;  // −π
+    const xMax = +Math.PI;  // +π
+    const step = (xMax - xMin) / (numPoints - 1);
+    const xValues: number[] = [];
+    for (let i = 0; i < numPoints; i++) {
+        xValues.push(xMin + step * i);
+    }
+
+    // 3) Hitung nilai f(x) asli sekali saja:
+    const yOriginal = xValues.map((x) => {
+        try {
+            return evaluate(base_function, { x });
+        } catch {
+            return NaN;
+        }
+    });
+
+    // 3) Siapkan polinomial Taylor hingga orde `order_n` (contoh: 5)
+    const polynomialTaylor = result.terms.slice(0, order_n + 1).join(" + ");
+    // 4) Hitung yTaylor
+    const yTaylor = xValues.map((x) => {
+        try {
+            return evaluate(polynomialTaylor, { x });
+        } catch {
+            return NaN;
+        }
+    });
+
+    const chartData: ChartData<"line", number[], string> = {
+        labels: xValues.map((x) => x.toFixed(3)),
+        datasets: [
+        {
+            label: `${base_function} (fungsi asli)`,
+            data: yOriginal,
+            borderColor: "orange",
+            backgroundColor: "transparent",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.2,
+        },
+        {
+            label: `Taylor P${order_n}(x)`,
+            data: yTaylor,
+            borderColor: "orangered",
+            backgroundColor: "transparent",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.2,
+            borderDash: [8, 5],
+        },
+        ],
+    };
+
+    const chartOptions: ChartOptions<"line"> = {
+        responsive: true,
+        plugins: {
+        title: {
+            display: true,
+            text: `Sin(x) and Its ${order_n}-Order Taylor Approximation at a = ${expansion_point}`,
+            font: {
+                size: 16,
+                weight: "bold",
+            },
+            padding: { top: 10, bottom: 20 },
+        },
+      legend: {
+        position: "top",
+        labels: {
+            boxWidth: 12,
+            font: { size: 12 },
+        },
+      },
+      tooltip: {
+        mode: "index",
+        intersect: false,
+      },
+    },
+    scales: {
+        x: {
+            title: {
+                display: true,
+                text: "x",
+                font: { size: 14, weight: "bold" },
+            },
+            grid: {
+                drawOnChartArea: true,
+                color: "rgba(200,200,200,0.2)",
+            },
+            // Kalau mau label π, π/2, dsb, bisa tambahkan callback ticks di sini
+        },
+        y: {
+            title: {
+                display: true,
+                text: "y",
+                font: { size: 14, weight: "bold" },
+            },
+            grid: {
+                drawOnChartArea: true,
+                color: "rgba(200,200,200,0.2)",
+            },
+        },
+    },
+    elements: {
+        line: {
+            // Karena kita sudah menetapkan ChartOptions<"line">, TS tahu literalnya:
+            cubicInterpolationMode: "monotone",
+        },
+    },
+        layout: {
+            padding: { left: 10, right: 10, top: 10, bottom: 10 },
+        },
+    };
+
 
     return (
         <div
@@ -186,6 +335,55 @@ function ResultModal({ calculateResult, onClose }: ResultModalProps) {
                     <div className="w-full p-3 bg-indigo-50 rounded-md text-sm overflow-x-auto">
                         {/* Menggunakan BlockMath untuk tampilan yang lebih menonjol dan terpusat */}
                         <BlockMath math={pythonMathToLatex(calculateResult.data.result.taylor_series)} />
+                    </div>
+                </div>
+                {/* Hasil chart */}
+                <div className='w-full pt-6'>
+                    <h4 className='text-xl font-bold text-indigo-700 mb-2'>
+                        {base_function} And Its {order_n}-Order Taylor Approximation At a = {expansion_point}
+                    </h4>
+                    <div className="w-full h-64">
+                        <Line data={chartData} options={chartOptions} />
+                    </div>
+
+                    <div className="mt-6">
+                        <h4 className='text-xl font-bold text-indigo-700 mb-3'>
+                            Tabel Analisa Galat per Iterasi
+                        </h4>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full bg-white border border-gray-200 text-sm">
+                                <thead className="bg-gray-100">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left font-medium text-gray-700">Iterasi</th>
+                                        <th className="px-4 py-2 text-right font-medium text-gray-700">Nilai Eksak</th>
+                                        <th className="px-4 py-2 text-right font-medium text-gray-700">Nilai Hampiran</th>
+                                        <th className="px-4 py-2 text-right font-medium text-gray-700">Error Absolut</th>
+                                        <th className="px-4 py-2 text-right font-medium text-gray-700">Error Relatif</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {taylor_series_steps.map((step) => (
+                                        <tr key={step.n} className="border-t border-gray-200 hover:bg-gray-50">
+                                        <td className="px-4 py-2 whitespace-nowrap text-gray-800">
+                                            {step.n}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-right text-gray-800">
+                                            {step.f_exact.toFixed(6)}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-right text-gray-800">
+                                            {step.taylor_approx.toFixed(6)}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-right text-red-600">
+                                            {step.absolute_error.toFixed(6)}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-right text-red-600">
+                                            {step.relative_error.toFixed(6)}
+                                        </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
