@@ -10,7 +10,8 @@ import { XCircleIcon } from "@heroicons/react/outline";
 type RequestPayload = {
     base_function: string,
     expansion_point: number,
-    order_n: number
+    order_n: number,
+    evaluation_point: number
 }
 
 type ApiResponse = {
@@ -20,6 +21,7 @@ type ApiResponse = {
         base_function: string,
         expansion_point: number,
         order_n: number,
+        evaluation_point: number,
         result: TaylorResult
     }
 }
@@ -28,7 +30,17 @@ type TaylorResult = {
     taylor_series: string,
     terms: string[],
     symbolic_derivatives: string[],
-    evaluated_derivatives: string[]
+    evaluated_derivatives: string[],
+    f_exact: number,
+    final_taylor_approx: number,
+    final_absolute_error: number,
+    final_relative_error: number,
+    errors_per_term: {
+        f_exact: number,
+        taylor_approx: number,
+        absolute_error: number,
+        relative_error: number
+    }[]
 }
 
 type ResultModalProps = {
@@ -42,6 +54,10 @@ function ResultModal({ calculateResult, onClose }: ResultModalProps) {
         derivative_form: string;
         derivative_eval: number; // Pastikan tipe ini number, bukan string dari parseFloat
         term_form: string;
+        f_exact: number;
+        taylor_approx: number;
+        absolute_error: number;
+        relative_error: number;
     }> = [];
 
     // Fungsi pythonMathToLatex tetap sama seperti yang Anda berikan di prompt terakhir
@@ -79,6 +95,10 @@ function ResultModal({ calculateResult, onClose }: ResultModalProps) {
             derivative_form: calculateResult.data.result.symbolic_derivatives[i],
             derivative_eval: parseFloat(calculateResult.data.result.evaluated_derivatives[i]),
             term_form: calculateResult.data.result.terms[i],
+            f_exact: calculateResult.data.result.errors_per_term[i].f_exact,
+            taylor_approx: calculateResult.data.result.errors_per_term[i].taylor_approx,
+            absolute_error: calculateResult.data.result.errors_per_term[i].absolute_error,
+            relative_error: calculateResult.data.result.errors_per_term[i].relative_error
         });
     }
 
@@ -108,6 +128,7 @@ function ResultModal({ calculateResult, onClose }: ResultModalProps) {
                     <h4 className="text-lg font-semibold text-gray-700 mb-1">Parameter Input:</h4>
                     <p><span className='font-medium text-gray-600'>Fungsi Dasar:</span> <InlineMath math={pythonMathToLatex(calculateResult.data.base_function)} /></p>
                     <p><span className='font-medium text-gray-600'>Titik Ekspansi (a):</span> {calculateResult.data.expansion_point}</p>
+                    <p><span className='font-medium text-gray-600'>Titik Evaluasi:</span> {calculateResult.data.evaluation_point}</p>
                     <p><span className='font-medium text-gray-600'>Orde (N):</span> {calculateResult.data.order_n}</p>
                 </div>
 
@@ -123,19 +144,36 @@ function ResultModal({ calculateResult, onClose }: ResultModalProps) {
                                 <p className="font-semibold text-base text-indigo-600"> 
                                     Iterasi ke-{step.n}:
                                 </p>
-                                <div className="w-full flex flex-col items-start gap-2 pl-2 text-gray-700">
-                                    <span>
-                                        <InlineMath math={`f^{(${step.n})}(x)`} />{': '}
-                                        <InlineMath math={pythonMathToLatex(step.derivative_form)} />
-                                    </span>
-                                    <span>
-                                        <InlineMath math={`f^{(${step.n})}(${calculateResult.data.expansion_point})`} />{': '} {/* Tambahkan spasi di sini */}
-                                        {step.derivative_eval.toFixed(6)}
-                                    </span>
-                                    <span>
-                                        <span className="font-medium">Suku Polinomial</span>{': '} {/* Tambahkan spasi di sini */}
-                                        <InlineMath math={pythonMathToLatex(step.term_form)} />
-                                    </span>
+                                <div className="w-full flex flex-col items-start gap-6 pl-2 text-gray-700">
+                                    <div className='flex flex-col items-start gap-2'>
+                                        <span>
+                                            <InlineMath math={`f^{(${step.n})}(x)`} />{': '}
+                                            <InlineMath math={pythonMathToLatex(step.derivative_form)} />
+                                        </span>
+                                        <span>
+                                            <InlineMath math={`f^{(${step.n})}(${calculateResult.data.expansion_point})`} />{': '} 
+                                            {step.derivative_eval.toFixed(6)}
+                                        </span>
+                                        <span>
+                                            <span className="font-medium">Suku Polinomial</span>{': '}
+                                            <InlineMath math={pythonMathToLatex(step.term_form)} />
+                                        </span>
+
+                                    </div>
+                                    <div className="flex flex-col items-start gap-2">
+                                        <span>
+                                            <InlineMath math={`f^{(${step.n})}(${calculateResult.data.evaluation_point})`} />{' / Nilai Eksak: '} 
+                                            {step.f_exact.toFixed(6)}
+                                        </span>
+                                        <span>
+                                            <span className="font-medium">Error Relatif</span>{': '}
+                                            {step.relative_error.toFixed(6)}
+                                        </span>
+                                        <span>
+                                            <span className="font-medium">Error Absolute</span>{': '}
+                                            {step.absolute_error.toFixed(6)}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -159,6 +197,7 @@ export default function CalculatorRenew() {
     const [rawFunction, setRawFunction] = useState<string>("")
     const [expansionPoint, setExpansionPoint] = useState<number>(0.0)
     const [orderN, setOrderN] = useState<number>(1)
+    const [evaluationPoint, setEvaluationPoint] = useState<number>(0.0)
 
     // Application Feedback's State
     const [onLoading, setOnLoading] = useState<boolean>(false)
@@ -188,7 +227,8 @@ export default function CalculatorRenew() {
             const payload: RequestPayload = {
                 base_function: convertToMathJS(rawFunction),
                 expansion_point: expansionPoint,
-                order_n: orderN
+                order_n: orderN,
+                evaluation_point: evaluationPoint
             }
 
             if(payload.base_function === "")
@@ -215,6 +255,7 @@ export default function CalculatorRenew() {
                 throw new Error(parsedResponse.message);
 
             setCalculateResult(parsedResponse)
+            console.log(parsedResponse)
             setErrorMessage(null)
         }
         catch(e: any)
@@ -285,7 +326,7 @@ export default function CalculatorRenew() {
 
                     {/* point */}
                     <div className="space-y-2">
-                        <label className="font-medium text-gray-700">Enter a point:</label>
+                        <label className="font-medium text-gray-700">Enter an expansion point:</label>
                         <input
                             type="number"
                             value={expansionPoint}
@@ -314,6 +355,27 @@ export default function CalculatorRenew() {
                             min={1}
                             value={orderN}
                             onChange={e => setOrderN(parseInt(e.target.value, 10))}
+                            className="w-full p-3 border-2 border-gray-200 rounded-lg
+                                focus:outline-none focus:ring-2 focus:ring-blue-300 transition
+                                dark:bg-white 
+                                dark:placeholder-gray-400 
+                                dark:border-gray-200
+                                bg-white
+                                text-gray-900 
+                                dark:text-gray-900"
+                        />
+                    </div>
+
+                    {/* evaluation point */}
+                    <div className="space-y-2">
+                        <label className="font-medium text-gray-700">
+                            Evaluation Point
+                        </label>
+                        <input
+                            type="number"
+                            min={1}
+                            value={evaluationPoint}
+                            onChange={e => setEvaluationPoint(parseFloat(e.target.value))}
                             className="w-full p-3 border-2 border-gray-200 rounded-lg
                                 focus:outline-none focus:ring-2 focus:ring-blue-300 transition
                                 dark:bg-white 
